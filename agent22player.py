@@ -603,7 +603,18 @@ class Agent22Player(BasePokerPlayer):
 			# value = bet_amount * (2 * self.winning_probability + self.drawing_probability - 1)
 		else:
 			# E = P(W) * B - (1 - P(W) - P(D)) * B
-			value = bet_amount * (2 * self.winning_probability + self.drawing_probability - 1)
+			# value = bet_amount * (2 * self.winning_probability + self.drawing_probability - 1)
+			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:
+				lower_card_number = second_card[1]
+				higher_card_number = first_card[1]
+			else:
+				lower_card_number = first_card[1]
+				higher_card_number = second_card[1]
+			if first_card[0] == second_card[0]:
+				is_same_shape = True
+			else:
+				is_same_shape = False
+			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
 		return value
 
 	def re_calculate_probability(self):
