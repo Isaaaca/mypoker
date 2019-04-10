@@ -57,6 +57,37 @@ class Agent22Player(BasePokerPlayer):
 		3: RAISE_AMOUNT_RIVER
 	}
 
+	# Hold history of Opponent's action and outcome
+	# To search: self.RAISE_HISTORY[win][street_name][num_of_raises]
+	RAISE_HISTORY = {
+		# Roundts won
+		True: {
+			#Streets history
+			STREET_ZERO_CARD: {
+				# Number of raises
+			},
+			STREET_THREE_CARD: {
+			},
+                        STREET_FOUR_CARD:{
+                        },
+                        STREET_FIVE_CARD:{
+                        }
+		},
+		# Rounds lost
+		False: {
+			#Streets history
+			STREET_ZERO_CARD: {
+				# Number of raises
+			},
+			STREET_THREE_CARD: {
+			},
+                        STREET_FOUR_CARD:{
+                        },
+                        STREET_FIVE_CARD:{
+                        }
+		}
+	}
+
 	# Hold card probability look up table
 	# To search: self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
 	""" TO BE FILLED HERE """
@@ -293,7 +324,21 @@ class Agent22Player(BasePokerPlayer):
 			else:
 				self.opponent_stack = round_state["seats"][i]["stack"]
 				self.opponent_stack_at_start_of_round = self.opponent_stack
+
+		numRaises = 0
+		won = winners[0]["name"] == self.name
+		
+		for street in round_state["action_histories"].keys():
+			for turn in round_state["action_histories"][street]:
+				if turn["action"] == "RAISE" and turn["uuid"] != self.uuid:
+					numRaises+=1
+			if numRaises in self.RAISE_HISTORY[won][street]:
+				self.RAISE_HISTORY[won][street][numRaises]+=1
+			else:
+				self.RAISE_HISTORY[won][street][numRaises]=1
+
 		# DEBUG
+		# print(self.RAISE_HISTORY)
 		# pprint.pprint(winners)
 		# pprint.pprint(hand_info)
 		# pprint.pprint(round_state)
@@ -522,6 +567,31 @@ class Agent22Player(BasePokerPlayer):
 			if num_remaining_street != 0:
 				avg_raise_value = float(total_raise_amount_value) / num_remaining_street
 			self.avg_raise_amount_remaining_street.append(avg_raise_value)
+
+	def rounds_won(self, street_name):
+		won = 0
+		for x in range(self.RAISE_HISTORY[True][street_name].len()):
+			won+= self.RAISE_HISTORY[True][street_name][x]
+		return won
+
+	def rounds_lost(self, street_name):
+		lost = 0
+		for x in range(self.RAISE_HISTORY[False][street_name].len()):
+			lost+= self.RAISE_HISTORY[False][street_name][x]
+		return lost
+
+	def rounds_with_specic_raises(self, street_name, num_raises):
+		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
+        
+    # Use baye's theorem to calculate probability of wining based on number of raises made by opponent
+	def win_chance_from_raise_history(self, street_name, num_raises):
+		num_wins = self.rounds_won()
+		num_lost = self.rounds_lost()
+		raises_given_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins)
+		prob_win = num_wins / float(num_wins + num_lost)
+		prob_raises = rounds_with_specific_raises(street_name, num_raises)
+		return raises_given_win * prob_win / prob_raises
+
 
 def setup_ai():
 	return Agent22Player()
