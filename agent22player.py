@@ -77,6 +77,7 @@ class Agent22Player(BasePokerPlayer):
 		"A": 14
 	}
 
+
 	# Hold history of Opponent's action and outcome
 	# To search: self.RAISE_HISTORY[win][street_name][num_of_raises]
 	RAISE_HISTORY = {
