@@ -85,8 +85,7 @@ class Agent22Player(BasePokerPlayer):
 		# Roundts won
 		True: {
 			#Streets history
-			STREET_ZERO_CARD: {
-				# Number of raises
+			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
 			},
 			STREET_THREE_CARD: {
 			},
@@ -98,8 +97,7 @@ class Agent22Player(BasePokerPlayer):
 		# Rounds lost
 		False: {
 			#Streets history
-			STREET_ZERO_CARD: {
-				# Number of raises
+			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
 			},
 			STREET_THREE_CARD: {
 			},
@@ -251,6 +249,7 @@ class Agent22Player(BasePokerPlayer):
 		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.winning_probability = 0.5
+		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each update
 		# Current info (will be reinitialize from game info)
 		self.player_stack = 1000
@@ -651,19 +650,10 @@ class Agent22Player(BasePokerPlayer):
 			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
 			# value = bet_amount * (2 * self.winning_probability - 1)
 		else:	#not in PREFLOP
-			# E = P(W) * B - (1 - P(W) - P(D)) * B
-			# value = bet_amount * (2 * self.winning_probability - 1)
-			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:
-				lower_card_number = second_card[1]
-				higher_card_number = first_card[1]
-			else:
-				lower_card_number = first_card[1]
-				higher_card_number = second_card[1]
-			if first_card[0] == second_card[0]:
-				is_same_shape = True
-			else:
-				is_same_shape = False
-			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
+			# E = P(W) * B - (1 - P(W)) * B
+			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
+			opp_heuristic = bet_amount * (2 * win_chance_from_raise_history(self.street, num_opponent_raise) - 1)
+			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
 		return value
 
 	def re_calculate_probability(self):
@@ -682,7 +672,7 @@ class Agent22Player(BasePokerPlayer):
 				is_same_shape = True
 			else:
 				is_same_shape = False
-			#reverse engineer equation, 2*Pr(win) = (Expected Value / Bet ) + 1
+			#reverse engineer equation, 2*Pr(win) = (Expected Value Per Bet) + 1
 			self.winning_probability = (self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number] + 1) / 2
 
 		#when not in PREFLOP
@@ -722,12 +712,16 @@ class Agent22Player(BasePokerPlayer):
 		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
         
 	# Use definition of conditional probability to calculate prob of winning given the num of raises made by opponent
-	def win_chance_from_raise_history(self, num_raises):
-		num_wins = self.rounds_won(self.street)
-		num_lost = self.rounds_lost(self.street)
-		prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
-		prob_raises = rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
-		return prob_current_opp_raises_and_win / prob_raises
+	def win_chance_from_raise_history(self, street_name, num_raises):
+		num_wins = self.rounds_won(street_name)
+		num_lost = self.rounds_lost(street_name)
+		prob_win_given_opp_raises = self.winning_probability	#initialize to card winning probability in case cannot compute
+		if (num_wins + num_lost != 0):
+			prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
+			prob_raises = rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
+			if prob_raises != 0:
+				prob_win_given_opp_raises = prob_current_opp_raises_and_win / prob_raises
+		return prob_win_given_opp_raises
 
 def setup_ai():
 	return Agent22Player()
