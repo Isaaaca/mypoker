@@ -11,4 +11,4 @@ config.register_player(name="FT1", algorithm=RaisedPlayer())
 config.register_player(name="FT2", algorithm=RandomPlayer())
 
 
-game_result = start_poker(config, verbose=0)
+game_result = start_poker(config, verbose=1)
