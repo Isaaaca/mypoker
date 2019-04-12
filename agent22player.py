@@ -278,6 +278,7 @@ class Group22Player(BasePokerPlayer):
 		self.remaining_raise_this_street = self.NUM_RAISE_PER_STREET	#set to 4
 		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
+		self.preflop_expected_value = 0.0
 		self.winning_probability = 0.5
 		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each update
@@ -453,18 +454,20 @@ class Group22Player(BasePokerPlayer):
 		numRaises = 0
 		won = (winners[0]["name"] == self.name)
 		
-		for street in round_state["action_histories"].keys():
-			for turn in round_state["action_histories"][street]:
-				if turn["action"] == "RAISE" and turn["uuid"] != self.uuid:
-					numRaises += 1
-			if numRaises in self.RAISE_HISTORY[won][street]:
-				self.RAISE_HISTORY[won][street][numRaises] += 1
-			else:
-				self.RAISE_HISTORY[won][street][numRaises] = 1
+		# We can only evaluate how powerful the opponent is given their action if we do not fold
+		if not ((won == False) and (self.last_action["action"] == self.FOLD)):
+			for street in round_state["action_histories"].keys():
+				for turn in round_state["action_histories"][street]:
+					if turn["action"] == "RAISE" and turn["uuid"] != self.uuid:
+						numRaises += 1
+				if numRaises in self.RAISE_HISTORY[won][street]:
+					self.RAISE_HISTORY[won][street][numRaises] += 1
+				else:
+					self.RAISE_HISTORY[won][street][numRaises] = 1
 
-		for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
-			for raises in self.WIN_RATES_FROM_RAISE_HISTORY[street].keys():
-				self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
+			for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
+				for raises in self.WIN_RATES_FROM_RAISE_HISTORY[street].keys():
+					self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
 		# DEBUG
 		# print(self.RAISE_HISTORY)
 		# pprint.pprint(winners)
@@ -668,28 +671,16 @@ class Group22Player(BasePokerPlayer):
 		second_card = self.hole_card[1]
 		value = 0
 		if self.street == self.STREET_ZERO_CARD:
-			# To be replaced with expected value look up table
-			# CONDITION: SUITED CARDS
-			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:	#compare number
-				lower_card_number = second_card[1]
-				higher_card_number = first_card[1]
-			else:
-				lower_card_number = first_card[1]
-				higher_card_number = second_card[1]
-			if first_card[0] == second_card[0]:	#compare shape
-				is_same_shape = True
-			else:
-				is_same_shape = False
-			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
-			# value = bet_amount * (2 * self.winning_probability - 1)
+			card_heuristic = bet_amount * self.preflop_expected_value
+			# card_heuristic = bet_amount * (2 * self.winning_probability - 1)
 		else:	#not in PREFLOP
 			# E = P(W) * B - (1 - P(W)) * B
 			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
-			opp_heuristic = bet_amount * (2 * self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise] - 1)
-			if opp_heuristic >=0 and self.round_count > self.MIN_NUM_DATA_COLLECTED:
-				value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
-			else:
-				value = card_heuristic
+		opp_heuristic = bet_amount * (2 * self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise] - 1)
+		if (opp_heuristic >= 0) and (self.round_count > self.MIN_NUM_DATA_COLLECTED):
+			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
+		else:
+			value = card_heuristic
 		return value
 
 	def re_calculate_probability(self):
@@ -709,7 +700,8 @@ class Group22Player(BasePokerPlayer):
 			else:
 				is_same_shape = False
 			#reverse engineer equation, 2*Pr(win) = (Expected Value Per Bet) + 1
-			self.winning_probability = (self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number] + 1) / 2
+			self.preflop_expected_value = self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
+			self.winning_probability = (self.preflop_expected_value + 1) / 2
 
 		#when not in PREFLOP
 		else:
