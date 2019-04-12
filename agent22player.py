@@ -1,12 +1,12 @@
 from pypokerengine.players import BasePokerPlayer
-from pypokerengine.engine.card import Card
+from pypokerengine.utils.card_utils import gen_cards, estimate_hole_card_win_rate
 import random as rand
 import pprint
 
 class Agent22Player(BasePokerPlayer):
 
 	#number of simulation
-	NB_SIMULATION = 100
+	NB_SIMULATION = 250
 	
 	# Street name constant
 	STREET_ZERO_CARD = "preflop"
@@ -86,25 +86,33 @@ class Agent22Player(BasePokerPlayer):
 		True: {
 			#Streets history
 			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
 			},
 			STREET_THREE_CARD: {
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
 			},
-                        STREET_FOUR_CARD:{
-                        },
-                        STREET_FIVE_CARD:{
-                        }
+			STREET_FOUR_CARD:{
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			},
+			STREET_FIVE_CARD:{
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			}
 		},
 		# Rounds lost
 		False: {
 			#Streets history
 			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
 			},
 			STREET_THREE_CARD: {
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
 			},
-                        STREET_FOUR_CARD:{
-                        },
-                        STREET_FIVE_CARD:{
-                        }
+			STREET_FOUR_CARD:{
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			},
+			STREET_FIVE_CARD:{
+				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			}
 		}
 	}
 
@@ -627,7 +635,7 @@ class Agent22Player(BasePokerPlayer):
 		expected_num_opponent_future_raise = min(remaining_opponent_raise_this_round, float(num_opponent_raise) / num_street * num_remaining_street)
 		expected_increase_bet = min(player_stack, opponent_stack, (expected_num_player_future_raise + expected_num_opponent_future_raise) * avg_raise_amount_remaining_street)
 		expected_bet = bet_amount + expected_increase_bet
-		expected_value = self.evaluate_value(expected_bet, num_opponent_raise + expected_num_player_future_raise)
+		expected_value = self.evaluate_value(expected_bet, num_opponent_raise + round(expected_num_opponent_future_raise))
 		return expected_value
 
 	def evaluate_value(self, bet_amount, num_opponent_raise):
@@ -652,7 +660,7 @@ class Agent22Player(BasePokerPlayer):
 		else:	#not in PREFLOP
 			# E = P(W) * B - (1 - P(W)) * B
 			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
-			opp_heuristic = bet_amount * (2 * win_chance_from_raise_history(self.street, num_opponent_raise) - 1)
+			opp_heuristic = bet_amount * (2 * self.win_chance_from_raise_history(self.street, num_opponent_raise) - 1)
 			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
 		return value
 
@@ -708,7 +716,7 @@ class Agent22Player(BasePokerPlayer):
 			lost += self.RAISE_HISTORY[False][street_name][x]
 		return lost
 
-	def rounds_with_specic_raises(self, street_name, num_raises):
+	def rounds_with_specific_raises(self, street_name, num_raises):
 		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
         
 	# Use definition of conditional probability to calculate prob of winning given the num of raises made by opponent
@@ -718,7 +726,7 @@ class Agent22Player(BasePokerPlayer):
 		prob_win_given_opp_raises = self.winning_probability	#initialize to card winning probability in case cannot compute
 		if (num_wins + num_lost != 0):
 			prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
-			prob_raises = rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
+			prob_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
 			if prob_raises != 0:
 				prob_win_given_opp_raises = prob_current_opp_raises_and_win / prob_raises
 		return prob_win_given_opp_raises
