@@ -6,3 +6,4 @@ install:
 	- pip install PyPokerEngine
 script:
 	- python tests.py
+  
