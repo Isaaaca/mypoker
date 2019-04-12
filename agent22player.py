@@ -7,7 +7,10 @@ class Group22Player(BasePokerPlayer):
 
 	#number of simulation
 	NB_SIMULATION = 250
-	
+
+	#Minumum rounds needed to collect base data for 2nd heuristic
+	MIN_NUM_DATA_COLLECTED = 50	
+
 	# Street name constant
 	STREET_ZERO_CARD = "preflop"
 	STREET_THREE_CARD = "flop"
@@ -114,6 +117,25 @@ class Group22Player(BasePokerPlayer):
 				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
 			}
 		}
+	}
+
+	# Hold history of Opponent's action and outcome
+	# To search: self.WIN_RATES_FROM_RAISE_HISTORY[street_name][num_of_raises]
+	WIN_RATES_FROM_RAISE_HISTORY = {
+		#Streets history
+		STREET_ZERO_CARD: {	# {number_of_raises: win_rate}
+			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
+		},
+		STREET_THREE_CARD: {
+			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
+		},
+		STREET_FOUR_CARD:{
+			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
+		},
+		STREET_FIVE_CARD:{
+			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
+		}
+		
 	}
 
 	# Hold card probability look up table
@@ -440,6 +462,9 @@ class Group22Player(BasePokerPlayer):
 			else:
 				self.RAISE_HISTORY[won][street][numRaises] = 1
 
+		for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
+			for raises in self.WIN_RATES_FROM_RAISE_HISTORY[street].keys():
+				self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
 		# DEBUG
 		# print(self.RAISE_HISTORY)
 		# pprint.pprint(winners)
@@ -660,8 +685,11 @@ class Group22Player(BasePokerPlayer):
 		else:	#not in PREFLOP
 			# E = P(W) * B - (1 - P(W)) * B
 			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
-			opp_heuristic = bet_amount * (2 * self.win_chance_from_raise_history(self.street, num_opponent_raise) - 1)
-			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
+			opp_heuristic = bet_amount * (2 * self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise] - 1)
+			if opp_heuristic >=0 and self.round_count > self.MIN_NUM_DATA_COLLECTED:
+				value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
+			else:
+				value = card_heuristic
 		return value
 
 	def re_calculate_probability(self):
@@ -723,7 +751,7 @@ class Group22Player(BasePokerPlayer):
 	def win_chance_from_raise_history(self, street_name, num_raises):
 		num_wins = self.rounds_won(street_name)
 		num_lost = self.rounds_lost(street_name)
-		prob_win_given_opp_raises = self.winning_probability	#initialize to card winning probability in case cannot compute
+		prob_win_given_opp_raises = -1.0	#initialize to card winning probability in case cannot compute
 		if (num_wins + num_lost != 0):
 			prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
 			prob_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
