@@ -1,9 +1,13 @@
 from pypokerengine.players import BasePokerPlayer
+from pypokerengine.engine.card import Card
 import random as rand
 import pprint
 
 class Agent22Player(BasePokerPlayer):
 
+	#number of simulation
+	NB_SIMULATION = 100
+	
 	# Street name constant
 	STREET_ZERO_CARD = "preflop"
 	STREET_THREE_CARD = "flop"
@@ -72,6 +76,36 @@ class Agent22Player(BasePokerPlayer):
 		"Q": 12,
 		"K": 13,
 		"A": 14
+	}
+
+
+	# Hold history of Opponent's action and outcome
+	# To search: self.RAISE_HISTORY[win][street_name][num_of_raises]
+	RAISE_HISTORY = {
+		# Roundts won
+		True: {
+			#Streets history
+			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
+			},
+			STREET_THREE_CARD: {
+			},
+                        STREET_FOUR_CARD:{
+                        },
+                        STREET_FIVE_CARD:{
+                        }
+		},
+		# Rounds lost
+		False: {
+			#Streets history
+			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
+			},
+			STREET_THREE_CARD: {
+			},
+                        STREET_FOUR_CARD:{
+                        },
+                        STREET_FIVE_CARD:{
+                        }
+		}
 	}
 
 	# Hold card probability look up table
@@ -211,16 +245,16 @@ class Agent22Player(BasePokerPlayer):
 		self.community_card = []
 		self.player_bet_at_start_of_street = 0
 		self.opponent_bet_at_start_of_street = 0
-		self.remaining_raise_this_street = self.NUM_RAISE_PER_STREET
-		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER
-		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER 
+		self.remaining_raise_this_street = self.NUM_RAISE_PER_STREET	#set to 4
+		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
+		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.winning_probability = 0.5
-		self.drawing_probability = 0
+		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each update
-		# Current info
-		self.player_stack = 10000
-		self.opponent_stack = 10000
-		self.player_bet = 0
+		# Current info (will be reinitialize from game info)
+		self.player_stack = 1000
+		self.opponent_stack = 1000
+		self.player_bet = 0 
 		self.opponent_bet = 0
 		self.last_action = {}
 		# Pre-calculating and populating data for estimating the future raising amount
@@ -230,7 +264,7 @@ class Agent22Player(BasePokerPlayer):
 	def declare_action(self, valid_actions, hole_card, round_state):
 		call_action_info = valid_actions[self.best_action(valid_actions)]
 		action = call_action_info["action"]
-		return action  # action returned here is sent to the poker engine
+		return action	# action returned here is sent to the poker engine
 
 	def receive_game_start_message(self, game_info):
 		# initialize game infomation
@@ -385,7 +419,21 @@ class Agent22Player(BasePokerPlayer):
 			else:
 				self.opponent_stack = round_state["seats"][i]["stack"]
 				self.opponent_stack_at_start_of_round = self.opponent_stack
+
+		numRaises = 0
+		won = (winners[0]["name"] == self.name)
+		
+		for street in round_state["action_histories"].keys():
+			for turn in round_state["action_histories"][street]:
+				if turn["action"] == "RAISE" and turn["uuid"] != self.uuid:
+					numRaises += 1
+			if numRaises in self.RAISE_HISTORY[won][street]:
+				self.RAISE_HISTORY[won][street][numRaises] += 1
+			else:
+				self.RAISE_HISTORY[won][street][numRaises] = 1
+
 		# DEBUG
+		# print(self.RAISE_HISTORY)
 		# pprint.pprint(winners)
 		# pprint.pprint(hand_info)
 		# pprint.pprint(round_state)
@@ -410,7 +458,7 @@ class Agent22Player(BasePokerPlayer):
 		# Check call action
 		call_outcome = 0
 		if self.is_start_of_street == True:
-			call_outcome = self.heuristic_minimax(
+			call_outcome = self.heuristic_minimax(	#player calls, opponent turn
 								self.OPPONENT_TURN,
 								self.opponent_bet,
 								self.opponent_bet,
@@ -420,7 +468,7 @@ class Agent22Player(BasePokerPlayer):
 								self.remaining_opponent_raise_this_round,
 								self.remaining_raise_this_street)
 		else:
-			call_outcome = self.expected_outcome(
+			call_outcome = self.expected_outcome(	#player calls, street ends
 								self.opponent_bet,
 								self.player_stack - bet_diff,
 								self.opponent_stack,
@@ -433,10 +481,10 @@ class Agent22Player(BasePokerPlayer):
 		if len(valid_actions) == 3:
 			raise_outcome = 0
 			raise_amount_this_street = self.raise_amount(self.street)
-			player_has_enough_money = (self.player_stack >= (bet_diff + raise_amount_this_street))
-			opponent_has_enough_money = (self.opponent_stack >= raise_amount_this_street)
+			player_has_enough_money = (self.player_stack >= (bet_diff + raise_amount_this_street))	#flag
+			opponent_has_enough_money = (self.opponent_stack >= raise_amount_this_street)	#flag
 			if (player_has_enough_money and opponent_has_enough_money):
-				raise_outcome = self.heuristic_minimax(
+				raise_outcome = self.heuristic_minimax(	#player raises
 									self.OPPONENT_TURN,
 									self.opponent_bet + raise_amount_this_street,
 									self.opponent_bet,
@@ -447,7 +495,7 @@ class Agent22Player(BasePokerPlayer):
 									self.remaining_raise_this_street - 1)
 			else:
 				last_raise_amount = min(self.player_stack - bet_diff, self.opponent_stack)
-				raise_outcome = self.heuristic_minimax(
+				raise_outcome = self.heuristic_minimax(	#player raises to the highest possible remaining amount
 									self.OPPONENT_TURN,
 									self.opponent_bet + last_raise_amount,
 									self.opponent_bet,
@@ -478,8 +526,8 @@ class Agent22Player(BasePokerPlayer):
 		raise_outcome = 0
 		raise_amount_this_street = self.raise_amount(self.street)
 		# Max player
-		if player_turn == self.PLAYER_TURN:
-			best_outcome = (-1) * player_bet
+		if player_turn == self.PLAYER_TURN: #if it is player's turn
+			best_outcome = (-1) * player_bet #initialize with folding
 			bet_diff = opponent_bet - player_bet
 			# Check call outcome
 			call_outcome = self.expected_outcome(
@@ -491,13 +539,13 @@ class Agent22Player(BasePokerPlayer):
 			if call_outcome >= best_outcome:
 				best_outcome = call_outcome
 			# Check raise outcome
-			if remaining_raise_this_street > 0:
-				if remaining_player_raise_this_round > 0:
+			if remaining_raise_this_street > 0:	#make sure there is eligible number of raises left in street
+				if remaining_player_raise_this_round > 0:	#check if player is still eligible to raise
 					if ((player_stack > bet_diff) and (opponent_stack > 0)):
 						player_has_enough_money = (player_stack >= (bet_diff + raise_amount_this_street))
 						opponent_has_enough_money = (opponent_stack >= raise_amount_this_street)
 						if (player_has_enough_money and opponent_has_enough_money):
-							raise_outcome = self.heuristic_minimax(
+							raise_outcome = self.heuristic_minimax(	#recursive miniMax
 												self.OPPONENT_TURN,
 												opponent_bet + raise_amount_this_street,
 												opponent_bet,
@@ -508,7 +556,7 @@ class Agent22Player(BasePokerPlayer):
 												remaining_raise_this_street - 1)
 						else:
 							last_raise_amount = min(player_stack - bet_diff, opponent_stack)
-							raise_outcome = self.heuristic_minimax(
+							raise_outcome = self.heuristic_minimax(	#recursive miniMax
 												self.OPPONENT_TURN,
 												opponent_bet + last_raise_amount,
 												opponent_bet,
@@ -589,56 +637,91 @@ class Agent22Player(BasePokerPlayer):
 		if self.street == self.STREET_ZERO_CARD:
 			# To be replaced with expected value look up table
 			# CONDITION: SUITED CARDS
-			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:
+			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:	#compare number
 				lower_card_number = second_card[1]
 				higher_card_number = first_card[1]
 			else:
 				lower_card_number = first_card[1]
 				higher_card_number = second_card[1]
-			if first_card[0] == second_card[0]:
+			if first_card[0] == second_card[0]:	#compare shape
 				is_same_shape = True
 			else:
 				is_same_shape = False
 			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
-			# value = bet_amount * (2 * self.winning_probability + self.drawing_probability - 1)
-		else:
-			# E = P(W) * B - (1 - P(W) - P(D)) * B
-			# value = bet_amount * (2 * self.winning_probability + self.drawing_probability - 1)
-			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]:
-				lower_card_number = second_card[1]
-				higher_card_number = first_card[1]
-			else:
-				lower_card_number = first_card[1]
-				higher_card_number = second_card[1]
-			if first_card[0] == second_card[0]:
-				is_same_shape = True
-			else:
-				is_same_shape = False
-			value = bet_amount * self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
+			# value = bet_amount * (2 * self.winning_probability - 1)
+		else:	#not in PREFLOP
+			# E = P(W) * B - (1 - P(W)) * B
+			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
+			opp_heuristic = bet_amount * (2 * win_chance_from_raise_history(self.street, num_opponent_raise) - 1)
+			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
 		return value
 
 	def re_calculate_probability(self):
-		# Trivial implementation
+		# if in PREFLOP, we check against expected value and reverse the equation 
 		if self.street == self.STREET_ZERO_CARD:
-			self.winning_probability = 0.5
-			self.drawing_probability = 0
+			first_card = self.hole_card[0]
+			second_card = self.hole_card[1]
+			
+			if self.CARD_NUM_DICT[first_card[1]] > self.CARD_NUM_DICT[second_card[1]]: #check number
+				lower_card_number = second_card[1]
+				higher_card_number = first_card[1]
+			else:
+				lower_card_number = first_card[1]
+				higher_card_number = second_card[1]
+			if first_card[0] == second_card[0]: #check same shape
+				is_same_shape = True
+			else:
+				is_same_shape = False
+			#reverse engineer equation, 2*Pr(win) = (Expected Value Per Bet) + 1
+			self.winning_probability = (self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number] + 1) / 2
+
+		#when not in PREFLOP
 		else:
-			# To be replaced with specific probability calculation
-			self.winning_probability = 0.5
-			self.drawing_probability = 0
+			self.winning_probability = estimate_hole_card_win_rate(
+											nb_simulation = self.NB_SIMULATION,
+											nb_player = 2,
+											hole_card = gen_cards(list(self.hole_card)),
+											community_card = gen_cards(list(self.community_card)))
 
 	def pre_calculate_avg_raise_amount_remaining_street(self):
 		total_raise_amount_value = 0
-		for i in range(0, self.NUM_STREET_PER_ROUND):
+		for i in range(0, self.NUM_STREET_PER_ROUND):	#calculating raise amount sum of all 4 street
 			total_raise_amount_value += self.RAISE_AMOUNT_DICT[i]
-		num_remaining_street = self.NUM_STREET_PER_ROUND
-		for i in range(0, self.NUM_STREET_PER_ROUND):
+		num_remaining_street = self.NUM_STREET_PER_ROUND	#set to 4
+		for i in range(0, self.NUM_STREET_PER_ROUND):	#calculate avg remaining raise for each street
 			total_raise_amount_value -= self.RAISE_AMOUNT_DICT[i]
 			num_remaining_street -= 1
 			avg_raise_value = 0
 			if num_remaining_street != 0:
 				avg_raise_value = float(total_raise_amount_value) / num_remaining_street
 			self.avg_raise_amount_remaining_street.append(avg_raise_value)
+
+	def rounds_won(self, street_name):
+		won = 0
+		for x in self.RAISE_HISTORY[True][street_name].keys():
+			won += self.RAISE_HISTORY[True][street_name][x]
+		return won
+
+	def rounds_lost(self, street_name):
+		lost = 0
+		for x in self.RAISE_HISTORY[False][street_name].keys():
+			lost += self.RAISE_HISTORY[False][street_name][x]
+		return lost
+
+	def rounds_with_specic_raises(self, street_name, num_raises):
+		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
+        
+	# Use definition of conditional probability to calculate prob of winning given the num of raises made by opponent
+	def win_chance_from_raise_history(self, street_name, num_raises):
+		num_wins = self.rounds_won(street_name)
+		num_lost = self.rounds_lost(street_name)
+		prob_win_given_opp_raises = self.winning_probability	#initialize to card winning probability in case cannot compute
+		if (num_wins + num_lost != 0):
+			prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
+			prob_raises = rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
+			if prob_raises != 0:
+				prob_win_given_opp_raises = prob_current_opp_raises_and_win / prob_raises
+		return prob_win_given_opp_raises
 
 def setup_ai():
 	return Agent22Player()
