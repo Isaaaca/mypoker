@@ -1,9 +1,8 @@
 language: python
 python:
-	- "2.7"
+  - "2.7"
 cache: pip
 install:
-	- pip install PyPokerEngine
+  - pip install PyPokerEngine
 script:
-	- python tests.py
-  
+  - python tests.py
