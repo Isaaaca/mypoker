@@ -17,6 +17,9 @@ class Group22Player(BasePokerPlayer):
 	STREET_FOUR_CARD = "turn"
 	STREET_FIVE_CARD = "river"
 
+	# List of streets
+	LIST_OF_STREET = [STREET_ZERO_CARD, STREET_THREE_CARD, STREET_FOUR_CARD, STREET_FIVE_CARD]
+
 	# Action name constant
 	FOLD = "fold"
 	CALL = "call"
@@ -135,7 +138,6 @@ class Group22Player(BasePokerPlayer):
 		STREET_FIVE_CARD:{
 			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
 		}
-		
 	}
 
 	# Hold card probability look up table
@@ -451,23 +453,32 @@ class Group22Player(BasePokerPlayer):
 				self.opponent_stack = round_state["seats"][i]["stack"]
 				self.opponent_stack_at_start_of_round = self.opponent_stack
 
-		numRaises = 0
 		won = (winners[0]["name"] == self.name)
 		
 		# We can only evaluate how powerful the opponent is given their action if we do not fold
 		if not ((won == False) and (self.last_action["action"] == self.FOLD)):
+			num_raises = [0, 0, 0, 0]
 			for street in round_state["action_histories"].keys():
+				# Calculate number of raise per street
 				for turn in round_state["action_histories"][street]:
 					if turn["action"] == "RAISE" and turn["uuid"] != self.uuid:
-						numRaises += 1
-				if numRaises in self.RAISE_HISTORY[won][street]:
-					self.RAISE_HISTORY[won][street][numRaises] += 1
-				else:
-					self.RAISE_HISTORY[won][street][numRaises] = 1
+						num_raises[self.STREET_INDEX_DICT[street]] += 1
 
+			# Calculate number of raise by the end of certain street
+			for i in range(self.NUM_STREET_PER_ROUND - 1, 0, -1):
+				for j in range(0, i):
+					num_raises[i] += num_raises[j]
+
+			for street in self.LIST_OF_STREET:
+				self.RAISE_HISTORY[won][street][num_raises[self.STREET_INDEX_DICT[street]]] += 1
+
+			# Note: it can be mathematically proven that we only need to update 
+			# entries with number of raises by the end of each street of this round
 			for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
-				for raises in self.WIN_RATES_FROM_RAISE_HISTORY[street].keys():
+				if street in round_state["action_histories"].keys()
+					raises = num_raises[self.STREET_INDEX_DICT[street]]
 					self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
+
 		# DEBUG
 		# print(self.RAISE_HISTORY)
 		# pprint.pprint(winners)
@@ -747,11 +758,11 @@ class Group22Player(BasePokerPlayer):
 		num_lost = self.rounds_lost(street_name)
 		prob_win_given_opp_raises = -1.0	#initialize to card winning probability in case cannot compute
 		if (num_wins + num_lost != 0):
-			prob_current_opp_raises_and_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
-			prob_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
+			prob_current_opp_raises_and_player_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
+			prob_opp_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
 			if prob_raises != 0:
-				prob_win_given_opp_raises = prob_current_opp_raises_and_win / prob_raises
-		return prob_win_given_opp_raises
+				prob_player_win_given_opp_raises = prob_current_opp_raises_and_player_win / prob_opp_raises
+		return prob_player_win_given_opp_raises
 
 def setup_ai():
 	return Group22Player()
