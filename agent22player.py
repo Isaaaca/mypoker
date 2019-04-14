@@ -643,7 +643,7 @@ class Group22Player(BasePokerPlayer):
 												remaining_player_raise_this_round,
 												remaining_opponent_raise_this_round - 1,
 												remaining_raise_this_street - 1)
-						if raise_outcome >= best_outcome:
+						if raise_outcome <= best_outcome:
 							best_outcome = raise_outcome
 		return best_outcome
 
