@@ -676,8 +676,9 @@ class Group22Player(BasePokerPlayer):
 		else:	#not in PREFLOP
 			# E = P(W) * B - (1 - P(W)) * B
 			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
-		opp_heuristic = bet_amount * (2 * self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise] - 1)
-		if (opp_heuristic >= 0) and (self.round_count > self.MIN_NUM_DATA_COLLECTED):
+		win_rates_from_raise_history = self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise]
+		opp_heuristic = bet_amount * (2 * win_rates_from_raise_history - 1)
+		if (win_rates_from_raise_history >= 0.0) and (win_rates_from_raise_history <= 1.0) and (self.round_count > self.MIN_NUM_DATA_COLLECTED):
 			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
 		else:
 			value = card_heuristic
@@ -740,6 +741,7 @@ class Group22Player(BasePokerPlayer):
 		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
         
 	# Use definition of conditional probability to calculate prob of winning given the num of raises made by opponent
+	# Return a probability between 0.0 and 1.0 if success, and return -1.0 if cannot compute
 	def win_chance_from_raise_history(self, street_name, num_raises):
 		num_wins = self.rounds_won(street_name)
 		num_lost = self.rounds_lost(street_name)
