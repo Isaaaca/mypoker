@@ -962,4 +962,4 @@ class Group22Player(BasePokerPlayer):
 		return prob_player_win_given_opp_raises
 
 def setup_ai():
-return Group22Player()
+	return Group22Player()
