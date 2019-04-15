@@ -446,7 +446,7 @@ class Group22Player(BasePokerPlayer):
 		# pprint.pprint(hand_info)
 		# pprint.pprint(round_state)
 		# print("-----ROUND RESULT-----")
-		# print("player_stack: " + str(self.player_stack))
+		print("player_stack: " + str(self.player_stack))
 		# print("opponent_stack: " + str(self.opponent_stack))
 		# print("----------------------")
 		# pass
