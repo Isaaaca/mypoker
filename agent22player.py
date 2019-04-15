@@ -9,7 +9,7 @@ class Group22Player(BasePokerPlayer):
 	NB_SIMULATION = 250
 
 	# Minumum rounds needed to collect base data for 2nd heuristic
-	MIN_NUM_DATA_COLLECTED = 50
+	MIN_NUM_DATA_COLLECTED = 100
 
 	# Psuedo infinite
 	POS_INF = 10000.0
@@ -89,58 +89,67 @@ class Group22Player(BasePokerPlayer):
 
 
 	# Hold history of Opponent's action and outcome
-	# To search: self.RAISE_HISTORY[win][street_name][num_of_raises]
+	# To search: self.RAISE_HISTORY[did_player_win][is_player_big_blind][street][num_raises]
 	RAISE_HISTORY = {
 		# Roundts won
 		True: {
-			#Streets history
-			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			# Player is big blind
+			True: {
+				#Streets history (index: number_of_raises, value: number_of_rounds)
+				STREET_ZERO_CARD: [0, 0, 0, 0, 0],
+				STREET_THREE_CARD: [0, 0, 0, 0, 0],
+				STREET_FOUR_CARD: [0, 0, 0, 0, 0],
+				STREET_FIVE_CARD: [0, 0, 0, 0, 0]
 			},
-			STREET_THREE_CARD: {
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
-			},
-			STREET_FOUR_CARD:{
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
-			},
-			STREET_FIVE_CARD:{
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			# Opponent is big blind
+			False: {
+				#Streets history (index: number_of_raises, value: number_of_rounds)
+				STREET_ZERO_CARD: [0, 0, 0, 0, 0],
+				STREET_THREE_CARD: [0, 0, 0, 0, 0],
+				STREET_FOUR_CARD: [0, 0, 0, 0, 0],
+				STREET_FIVE_CARD: [0, 0, 0, 0, 0]
 			}
 		},
 		# Rounds lost
 		False: {
-			#Streets history
-			STREET_ZERO_CARD: {	# {number_of_raises: number_of_rounds}
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			# Player is big blind
+			True: {
+				# Streets history (index: number_of_raises, value: number_of_rounds)
+				STREET_ZERO_CARD: [0, 0, 0, 0, 0],
+				STREET_THREE_CARD: [0, 0, 0, 0, 0],
+				STREET_FOUR_CARD: [0, 0, 0, 0, 0],
+				STREET_FIVE_CARD: [0, 0, 0, 0, 0]
 			},
-			STREET_THREE_CARD: {
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
-			},
-			STREET_FOUR_CARD:{
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
-			},
-			STREET_FIVE_CARD:{
-				0: 0, 1: 0, 2: 0, 3: 0, 4: 0
+			# Opponent is big blind
+			False: {
+				# Streets history (index: number_of_raises, value: number_of_rounds)
+				STREET_ZERO_CARD: [0, 0, 0, 0, 0],
+				STREET_THREE_CARD: [0, 0, 0, 0, 0],
+				STREET_FOUR_CARD: [0, 0, 0, 0, 0],
+				STREET_FIVE_CARD: [0, 0, 0, 0, 0]
 			}
 		}
 	}
 
-	# Hold history of Opponent's action and outcome
-	# To search: self.WIN_RATES_FROM_RAISE_HISTORY[street_name][num_of_raises]
+	# Hold win rates history given the player who is big blind this round
+	# To search: self.WIN_RATES_FROM_RAISE_HISTORY[street][num_raises]
 	WIN_RATES_FROM_RAISE_HISTORY = {
-		#Streets history
-		STREET_ZERO_CARD: {	# {number_of_raises: win_rate}
-			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
-		},
-		STREET_THREE_CARD: {
-			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
-		},
-		STREET_FOUR_CARD:{
-			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
-		},
-		STREET_FIVE_CARD:{
-			0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0
-		}
+		# Streets history (index: number_of_raises, value: win_rates)
+		STREET_ZERO_CARD: [0.0, 0.0, 0.0, 0.0, 0.0],
+		STREET_THREE_CARD: [0.0, 0.0, 0.0, 0.0, 0.0],
+		STREET_FOUR_CARD: [0.0, 0.0, 0.0, 0.0, 0.0],
+		STREET_FIVE_CARD: [0.0, 0.0, 0.0, 0.0, 0.0]
+	}
+
+	BET_AVG_KEY = "avg"
+	BET_NUM_KEY = "num"
+	BET_TOT_KEY = "total"
+
+	BET_AMOUNT_HISTORY = {
+		# Streets history (current_amount: {BET_AVG_KEY: avg, BET_NUM_KEY: num, BET_TOT_KEY: total})
+		STREET_ZERO_CARD: {},
+		STREET_THREE_CARD: {},
+		STREET_FOUR_CARD: {}
 	}
 
 	# Hold card probability look up table
@@ -270,6 +279,7 @@ class Group22Player(BasePokerPlayer):
 		# Round info
 		self.round_count = 0
 		self.big_blind_seat_pos = 0
+		self.is_player_big_blind = True
 		self.hole_card = []
 		self.player_stack_at_start_of_round = 10000
 		self.opponent_stack_at_start_of_round = 10000
@@ -281,6 +291,7 @@ class Group22Player(BasePokerPlayer):
 		self.community_card = []
 		self.player_bet_at_start_of_street = 0
 		self.opponent_bet_at_start_of_street = 0
+		self.bet_at_end_of_street = []
 		self.remaining_raise_this_street = self.NUM_RAISE_PER_STREET	#set to 4
 		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
@@ -338,6 +349,8 @@ class Group22Player(BasePokerPlayer):
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER
 		# Initialize last action
 		self.last_action = {}
+		# Initialize bet amount at end of street
+		self.bet_at_end_of_street = []
 		# Initialize for preflop street
 		self.player_bet_at_start_of_street = 0
 		self.opponent_bet_at_start_of_street = 0
@@ -358,6 +371,7 @@ class Group22Player(BasePokerPlayer):
 				if self.opponent_bet > self.small_blind_amount:
 					self.remaining_raise_this_street -= 1
 					self.big_blind_seat_pos = i
+		self.is_player_big_blind = (self.seat_pos == self.big_blind_seat_pos)
 		# DEBUG
 		# pprint.pprint(hole_card)
 		# pprint.pprint(seats)
@@ -381,6 +395,7 @@ class Group22Player(BasePokerPlayer):
 			self.remaining_raise_this_street = self.NUM_RAISE_PER_STREET
 			self.player_bet_at_start_of_street = self.player_bet
 			self.opponent_bet_at_start_of_street = self.opponent_bet
+			self.bet_at_end_of_street.append(self.player_bet_at_start_of_street)
 		# Update stacks
 		for i in range(0, len(round_state["seats"])):
 			if round_state["seats"][i]["uuid"] == self.uuid:
@@ -394,7 +409,8 @@ class Group22Player(BasePokerPlayer):
 		# print("-----STREET START-----")
 		# print("street: " + str(self.street))
 		# print("raise_amount: " + str(self.raise_amount(self.street)))
-		# print("avg_raise_amount_remaining_street: " + str(self.avg_raise_amount_remaining_street[self.STREET_INDEX_DICT[self.street]]))
+		# print("avg_raise_amount_remaining_street: " 
+		#		+ str(self.avg_raise_amount_remaining_street[self.STREET_INDEX_DICT[self.street]]))
 		# pprint.pprint(self.community_card)
 		# print("player_bet_at_start_of_street: " + str(self.player_bet_at_start_of_street))
 		# print("opponent_bet_at_start_of_street: " + str(self.opponent_bet_at_start_of_street))
@@ -448,6 +464,26 @@ class Group22Player(BasePokerPlayer):
 		# pass
 
 	def receive_round_result_message(self, winners, hand_info, round_state):
+		# Update bet amount history
+		if (self.last_action["action"] != self.FOLD):
+			final_bet = self.player_bet
+			if (len(self.bet_at_end_of_street) == (self.NUM_STREET_PER_ROUND - 1)):
+				for i in range(0, self.NUM_STREET_PER_ROUND - 1):
+					street = self.LIST_OF_STREET[i]
+					bet = self.bet_at_end_of_street[i]
+					if bet in self.BET_AMOUNT_HISTORY[street].keys():
+						self.BET_AMOUNT_HISTORY[street][bet][self.BET_TOT_KEY] += final_bet
+						self.BET_AMOUNT_HISTORY[street][bet][self.BET_NUM_KEY] += 1
+						self.BET_AMOUNT_HISTORY[street][bet][self.BET_AVG_KEY] = (
+							self.BET_AMOUNT_HISTORY[street][bet][self.BET_TOT_KEY]
+							/ float(self.BET_AMOUNT_HISTORY[street][bet][self.BET_NUM_KEY]))
+					else:
+						self.BET_AMOUNT_HISTORY[street][bet] = {
+							self.BET_AVG_KEY: final_bet,
+							self.BET_NUM_KEY: 1,
+							self.BET_TOT_KEY: final_bet
+						}
+
 		# Update stacks
 		for i in range(0, len(round_state["seats"])):
 			if round_state["seats"][i]["uuid"] == self.uuid:
@@ -476,14 +512,16 @@ class Group22Player(BasePokerPlayer):
 					num_raises[i] += num_raises[j]
 
 			for street in self.LIST_OF_STREET:
-				self.RAISE_HISTORY[has_won][street][num_raises[self.STREET_INDEX_DICT[street]]] += 1
+				num_opp_raises = num_raises[self.STREET_INDEX_DICT[street]]
+				self.RAISE_HISTORY[has_won][self.is_player_big_blind][street][num_opp_raises] += 1
 
 			# Note: it can be mathematically proven that we only need to update 
 			# entries with number of raises by the end of each street of this round
 			for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
 				if street in round_state["action_histories"].keys():
 					raises = num_raises[self.STREET_INDEX_DICT[street]]
-					self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
+					self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = (
+						self.win_chance_from_raise_history(street, raises))
 
 		# DEBUG
 		# print(self.RAISE_HISTORY)
@@ -694,18 +732,47 @@ class Group22Player(BasePokerPlayer):
 						opponent_stack,
 						remaining_player_raise_this_round, 
 						remaining_opponent_raise_this_round):
+		num_opponent_raise = self.NUM_RAISE_PER_ROUND_PER_PLAYER - remaining_opponent_raise_this_round
+		if self.street == self.STREET_FIVE_CARD:
+			expected_bet = bet_amount
+		else:
+			if ((self.round_count > self.MIN_NUM_DATA_COLLECTED)
+				and (bet_amount in self.BET_AMOUNT_HISTORY[self.street].keys())):
+				expected_bet = self.BET_AMOUNT_HISTORY[self.street][bet_amount][self.BET_AVG_KEY]
+			else:
+				expected_bet = self.naive_expected_bet_amount(
+									bet_amount, 
+									player_stack, 
+									opponent_stack,
+									remaining_player_raise_this_round,
+									remaining_opponent_raise_this_round)
+		expected_value = self.evaluate_value(expected_bet, num_opponent_raise)
+		return expected_value
+
+	def naive_expected_bet_amount(self, 
+								bet_amount, 
+								player_stack, 
+								opponent_stack, 
+								remaining_player_raise_this_round, 
+								remaining_opponent_raise_this_round):
+		num_player_raise = self.NUM_RAISE_PER_ROUND_PER_PLAYER - remaining_player_raise_this_round
+		num_opponent_raise = self.NUM_RAISE_PER_ROUND_PER_PLAYER - remaining_opponent_raise_this_round
 		street_index = self.STREET_INDEX_DICT[self.street]
 		num_street = street_index + 1
 		num_remaining_street = self.NUM_STREET_PER_ROUND - num_street
 		avg_raise_amount_remaining_street = self.avg_raise_amount_remaining_street[street_index]
-		num_player_raise = self.NUM_RAISE_PER_ROUND_PER_PLAYER - remaining_player_raise_this_round
-		num_opponent_raise = self.NUM_RAISE_PER_ROUND_PER_PLAYER - remaining_opponent_raise_this_round
-		expected_num_player_future_raise = min(remaining_player_raise_this_round, float(num_player_raise) / num_street * num_remaining_street)
-		expected_num_opponent_future_raise = min(remaining_opponent_raise_this_round, float(num_opponent_raise) / num_street * num_remaining_street)
-		expected_increase_bet = min(player_stack, opponent_stack, (expected_num_player_future_raise + expected_num_opponent_future_raise) * avg_raise_amount_remaining_street)
+		expected_num_player_future_raise = min(remaining_player_raise_this_round, 
+												float(num_player_raise) / num_street * num_remaining_street)
+		expected_num_opponent_future_raise = min(remaining_opponent_raise_this_round, 
+												float(num_opponent_raise) / num_street * num_remaining_street)
+		remaining_possible_total_raise = num_remaining_street * self.NUM_RAISE_PER_STREET
+		expected_increase_bet = min(player_stack, 
+									opponent_stack,
+									((expected_num_player_future_raise + expected_num_opponent_future_raise) 
+										* avg_raise_amount_remaining_street),
+									remaining_possible_total_raise * avg_raise_amount_remaining_street)
 		expected_bet = bet_amount + expected_increase_bet
-		expected_value = self.evaluate_value(expected_bet, num_opponent_raise)
-		return expected_value
+		return expected_bet
 
 	def evaluate_value(self, bet_amount, num_opponent_raise):
 		first_card = self.hole_card[0]
@@ -719,7 +786,9 @@ class Group22Player(BasePokerPlayer):
 			card_heuristic = bet_amount * (2 * self.winning_probability - 1)
 		win_rates_from_raise_history = self.WIN_RATES_FROM_RAISE_HISTORY[self.street][num_opponent_raise]
 		opp_heuristic = bet_amount * (2 * win_rates_from_raise_history - 1)
-		if (win_rates_from_raise_history >= 0.0) and (win_rates_from_raise_history <= 1.0) and (self.round_count > self.MIN_NUM_DATA_COLLECTED):
+		if ((win_rates_from_raise_history >= 0.0) 
+			and (win_rates_from_raise_history <= 1.0) 
+			and (self.round_count > self.MIN_NUM_DATA_COLLECTED)):
 			value = (1 - self.opp_heuristic_weight) * card_heuristic + self.opp_heuristic_weight * opp_heuristic
 		else:
 			value = card_heuristic
@@ -742,7 +811,8 @@ class Group22Player(BasePokerPlayer):
 			else:
 				is_same_shape = False
 			#reverse engineer equation, 2*Pr(win) = (Expected Value Per Bet) + 1
-			self.preflop_expected_value = self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number]
+			self.preflop_expected_value = (
+				self.PREFLOP_EXPECTED_VALUE[is_same_shape][lower_card_number][higher_card_number])
 			self.winning_probability = (self.preflop_expected_value + 1) / 2
 
 		#when not in PREFLOP
@@ -768,30 +838,33 @@ class Group22Player(BasePokerPlayer):
 
 	def rounds_won(self, street_name):
 		won = 0
-		for x in self.RAISE_HISTORY[True][street_name].keys():
-			won += self.RAISE_HISTORY[True][street_name][x]
+		for x in self.RAISE_HISTORY[True][self.is_player_big_blind][street_name]:
+			won += x
 		return won
 
 	def rounds_lost(self, street_name):
 		lost = 0
-		for x in self.RAISE_HISTORY[False][street_name].keys():
-			lost += self.RAISE_HISTORY[False][street_name][x]
+		for x in self.RAISE_HISTORY[False][self.is_player_big_blind][street_name]:
+			lost += x
 		return lost
 
 	def rounds_with_specific_raises(self, street_name, num_raises):
-		return self.RAISE_HISTORY[False][street_name][num_raises] + self.RAISE_HISTORY[True][street_name][num_raises]
+		result = (self.RAISE_HISTORY[False][self.is_player_big_blind][street_name][num_raises] 
+					+ self.RAISE_HISTORY[True][self.is_player_big_blind][street_name][num_raises])
+		return result
         
 	# Use definition of conditional probability to calculate prob of winning given the num of raises made by opponent
 	# Return a probability between 0.0 and 1.0 if success, and return -1.0 if cannot compute
-	def win_chance_from_raise_history(self, street_name, num_raises):
-		num_wins = self.rounds_won(street_name)
-		num_lost = self.rounds_lost(street_name)
+	def win_chance_from_raise_history(self, street, num_raises):
+		num_wins = self.rounds_won(street)
+		num_lost = self.rounds_lost(street)
 		prob_player_win_given_opp_raises = -1.0	#initialize to card winning probability in case cannot compute
 		if (num_wins + num_lost != 0):
-			prob_current_opp_raises_and_player_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
-			prob_opp_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
+			prob_cur_opp_raises_and_player_win = (self.RAISE_HISTORY[True][self.is_player_big_blind][street][num_raises] 
+														/ float(num_wins + num_lost))
+			prob_opp_raises = self.rounds_with_specific_raises(street, num_raises) / float(num_wins + num_lost)
 			if prob_opp_raises != 0:
-				prob_player_win_given_opp_raises = prob_current_opp_raises_and_player_win / prob_opp_raises
+				prob_player_win_given_opp_raises = prob_cur_opp_raises_and_player_win / prob_opp_raises
 		return prob_player_win_given_opp_raises
 
 def setup_ai():
