@@ -3,7 +3,6 @@ from randomplayer import RandomPlayer
 from agent22player import Group22Player
 
 #TODO:config the config as our wish
-
 config = setup_config(max_round=500, initial_stack=10000, small_blind_amount=10)
 
 
