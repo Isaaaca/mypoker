@@ -5,8 +5,6 @@ from agent22player import Group22Player
 #TODO:config the config as our wish
 config = setup_config(max_round=500, initial_stack=10000, small_blind_amount=10)
 
-
-
 config.register_player(name="f1", algorithm=RandomPlayer())
 config.register_player(name="FT2", algorithm=Group22Player())
 
