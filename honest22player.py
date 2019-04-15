@@ -3,7 +3,7 @@ from pypokerengine.utils.card_utils import gen_cards, estimate_hole_card_win_rat
 import random as rand
 import pprint
 
-class Group22Player(BasePokerPlayer):
+class Honest22Player(BasePokerPlayer):
 
 	# Number of simulation
 	NB_SIMULATION = 250
@@ -868,4 +868,4 @@ class Group22Player(BasePokerPlayer):
 		return prob_player_win_given_opp_raises
 
 def setup_ai():
-	return Group22Player()
+	return Honest22Player()
