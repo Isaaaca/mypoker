@@ -475,7 +475,7 @@ class Group22Player(BasePokerPlayer):
 			# Note: it can be mathematically proven that we only need to update 
 			# entries with number of raises by the end of each street of this round
 			for street in self.WIN_RATES_FROM_RAISE_HISTORY.keys():
-				if street in round_state["action_histories"].keys()
+				if street in round_state["action_histories"].keys():
 					raises = num_raises[self.STREET_INDEX_DICT[street]]
 					self.WIN_RATES_FROM_RAISE_HISTORY[street][raises] = self.win_chance_from_raise_history(street, raises)
 
@@ -674,7 +674,7 @@ class Group22Player(BasePokerPlayer):
 		expected_num_opponent_future_raise = min(remaining_opponent_raise_this_round, float(num_opponent_raise) / num_street * num_remaining_street)
 		expected_increase_bet = min(player_stack, opponent_stack, (expected_num_player_future_raise + expected_num_opponent_future_raise) * avg_raise_amount_remaining_street)
 		expected_bet = bet_amount + expected_increase_bet
-		expected_value = self.evaluate_value(expected_bet, num_opponent_raise + round(expected_num_opponent_future_raise))
+		expected_value = self.evaluate_value(expected_bet, num_opponent_raise)
 		return expected_value
 
 	def evaluate_value(self, bet_amount, num_opponent_raise):
@@ -756,11 +756,11 @@ class Group22Player(BasePokerPlayer):
 	def win_chance_from_raise_history(self, street_name, num_raises):
 		num_wins = self.rounds_won(street_name)
 		num_lost = self.rounds_lost(street_name)
-		prob_win_given_opp_raises = -1.0	#initialize to card winning probability in case cannot compute
+		prob_player_win_given_opp_raises = -1.0	#initialize to card winning probability in case cannot compute
 		if (num_wins + num_lost != 0):
 			prob_current_opp_raises_and_player_win = self.RAISE_HISTORY[True][street_name][num_raises] / float(num_wins + num_lost)
 			prob_opp_raises = self.rounds_with_specific_raises(self.street, num_raises) / float(num_wins + num_lost)
-			if prob_raises != 0:
+			if prob_opp_raises != 0:
 				prob_player_win_given_opp_raises = prob_current_opp_raises_and_player_win / prob_opp_raises
 		return prob_player_win_given_opp_raises
 
