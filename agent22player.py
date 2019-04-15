@@ -5,11 +5,14 @@ import pprint
 
 class Group22Player(BasePokerPlayer):
 
-	#number of simulation
+	# Number of simulation
 	NB_SIMULATION = 250
 
-	#Minumum rounds needed to collect base data for 2nd heuristic
-	MIN_NUM_DATA_COLLECTED = 50	
+	# Minumum rounds needed to collect base data for 2nd heuristic
+	MIN_NUM_DATA_COLLECTED = 50
+
+	# Psuedo infinite
+	POS_INF = 10000.0
 
 	# Street name constant
 	STREET_ZERO_CARD = "preflop"
@@ -270,6 +273,7 @@ class Group22Player(BasePokerPlayer):
 		self.hole_card = []
 		self.player_stack_at_start_of_round = 10000
 		self.opponent_stack_at_start_of_round = 10000
+		self.prev_outcome = 0
 		# To be re-initialized at the start of each street
 		# Street info
 		self.street = self.STREET_ZERO_CARD
@@ -448,15 +452,17 @@ class Group22Player(BasePokerPlayer):
 		for i in range(0, len(round_state["seats"])):
 			if round_state["seats"][i]["uuid"] == self.uuid:
 				self.player_stack = round_state["seats"][i]["stack"]
-				self.player_stack_at_start_of_round = self.player_stack
 			else:
 				self.opponent_stack = round_state["seats"][i]["stack"]
-				self.opponent_stack_at_start_of_round = self.opponent_stack
 
-		won = (winners[0]["name"] == self.name)
+		self.prev_outcome = self.player_stack - self.player_stack_at_start_of_round
+		self.player_stack_at_start_of_round = self.player_stack
+		self.opponent_stack_at_start_of_round = self.opponent_stack
+
+		has_won = (winners[0]["name"] == self.name)
 		
 		# We can only evaluate how powerful the opponent is given their action if we do not fold
-		if not ((won == False) and (self.last_action["action"] == self.FOLD)):
+		if not ((has_won == False) and (self.last_action["action"] == self.FOLD)):
 			num_raises = [0, 0, 0, 0]
 			for street in round_state["action_histories"].keys():
 				# Calculate number of raise per street
@@ -470,7 +476,7 @@ class Group22Player(BasePokerPlayer):
 					num_raises[i] += num_raises[j]
 
 			for street in self.LIST_OF_STREET:
-				self.RAISE_HISTORY[won][street][num_raises[self.STREET_INDEX_DICT[street]]] += 1
+				self.RAISE_HISTORY[has_won][street][num_raises[self.STREET_INDEX_DICT[street]]] += 1
 
 			# Note: it can be mathematically proven that we only need to update 
 			# entries with number of raises by the end of each street of this round
@@ -513,7 +519,9 @@ class Group22Player(BasePokerPlayer):
 								self.opponent_stack,
 								self.remaining_player_raise_this_round,
 								self.remaining_opponent_raise_this_round,
-								self.remaining_raise_this_street)
+								self.remaining_raise_this_street,
+								best_outcome,
+								self.POS_INF)
 		else:
 			call_outcome = self.expected_outcome(	#player calls, street ends
 								self.opponent_bet,
@@ -539,7 +547,9 @@ class Group22Player(BasePokerPlayer):
 									self.opponent_stack,
 									self.remaining_player_raise_this_round - 1,
 									self.remaining_opponent_raise_this_round,
-									self.remaining_raise_this_street - 1)
+									self.remaining_raise_this_street - 1,
+									best_outcome,
+									self.POS_INF)
 			else:
 				last_raise_amount = min(self.player_stack - bet_diff, self.opponent_stack)
 				raise_outcome = self.heuristic_minimax(	#player raises to the highest possible remaining amount
@@ -550,13 +560,15 @@ class Group22Player(BasePokerPlayer):
 									self.opponent_stack,
 									self.remaining_player_raise_this_round - 1,
 									self.remaining_opponent_raise_this_round,
-									self.remaining_raise_this_street - 1)
+									self.remaining_raise_this_street - 1,
+									best_outcome,
+									self.POS_INF)
 			if raise_outcome >= best_outcome:
 				best_outcome = raise_outcome
 				best_action_index = self.RAISE_INDEX
 		return best_action_index
 
-
+	# Alpha-beta prunning heuristic minimax algorithm
 	# Special case in the first turn of the street is already checked in best_action
 	def heuristic_minimax(self,
 						player_turn,
@@ -566,15 +578,19 @@ class Group22Player(BasePokerPlayer):
 						opponent_stack,
 						remaining_player_raise_this_round,
 						remaining_opponent_raise_this_round,
-						remaining_raise_this_street
+						remaining_raise_this_street,
+						alpha,
+						beta
 						):
 		best_outcome = 0
 		call_outcome = 0
 		raise_outcome = 0
 		raise_amount_this_street = self.raise_amount(self.street)
 		# Max player
-		if player_turn == self.PLAYER_TURN: #if it is player's turn
-			best_outcome = (-1) * player_bet #initialize with folding
+		if player_turn == self.PLAYER_TURN: 	# if it is player's turn
+			best_outcome = (-1) * player_bet 	# initialize with folding
+			if (best_outcome >= beta):
+				return best_outcome				# prunning
 			bet_diff = opponent_bet - player_bet
 			# Check call outcome
 			call_outcome = self.expected_outcome(
@@ -585,6 +601,8 @@ class Group22Player(BasePokerPlayer):
 								remaining_opponent_raise_this_round)
 			if call_outcome >= best_outcome:
 				best_outcome = call_outcome
+			if (best_outcome >= beta):
+				return best_outcome				# prunning
 			# Check raise outcome
 			if remaining_raise_this_street > 0:	#make sure there is eligible number of raises left in street
 				if remaining_player_raise_this_round > 0:	#check if player is still eligible to raise
@@ -600,7 +618,9 @@ class Group22Player(BasePokerPlayer):
 												opponent_stack,
 												remaining_player_raise_this_round - 1,
 												remaining_opponent_raise_this_round,
-												remaining_raise_this_street - 1)
+												remaining_raise_this_street - 1,
+												max(alpha, best_outcome),
+												beta)
 						else:
 							last_raise_amount = min(player_stack - bet_diff, opponent_stack)
 							raise_outcome = self.heuristic_minimax(	#recursive miniMax
@@ -611,12 +631,16 @@ class Group22Player(BasePokerPlayer):
 												opponent_stack,
 												remaining_player_raise_this_round - 1,
 												remaining_opponent_raise_this_round,
-												remaining_raise_this_street - 1)
+												remaining_raise_this_street - 1,
+												max(alpha, best_outcome),
+												beta)
 						if raise_outcome >= best_outcome:
 							best_outcome = raise_outcome
 		# Min player
 		else:
 			best_outcome = opponent_bet
+			if (best_outcome <= alpha):
+				return best_outcome				# prunning
 			bet_diff = player_bet - opponent_bet
 			# Check call outcome
 			call_outcome = self.expected_outcome(
@@ -627,6 +651,8 @@ class Group22Player(BasePokerPlayer):
 								remaining_opponent_raise_this_round)
 			if call_outcome <= best_outcome:
 				best_outcome = call_outcome
+			if (best_outcome <= alpha):
+				return best_outcome				# prunning
 			# Check raise outcome
 			if remaining_raise_this_street > 0:
 				if remaining_opponent_raise_this_round > 0:
@@ -642,7 +668,9 @@ class Group22Player(BasePokerPlayer):
 												opponent_stack - bet_diff - raise_amount_this_street,
 												remaining_player_raise_this_round,
 												remaining_opponent_raise_this_round - 1,
-												remaining_raise_this_street - 1)
+												remaining_raise_this_street - 1,
+												alpha,
+												min(beta, best_outcome))
 						else:
 							last_raise_amount = min(opponent_stack - bet_diff, player_stack)
 							raise_outcome = self.heuristic_minimax(
@@ -653,7 +681,9 @@ class Group22Player(BasePokerPlayer):
 												opponent_stack - bet_diff - last_raise_amount,
 												remaining_player_raise_this_round,
 												remaining_opponent_raise_this_round - 1,
-												remaining_raise_this_street - 1)
+												remaining_raise_this_street - 1,
+												alpha,
+												min(beta, best_outcome))
 						if raise_outcome <= best_outcome:
 							best_outcome = raise_outcome
 		return best_outcome
