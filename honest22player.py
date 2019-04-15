@@ -300,8 +300,8 @@ class Honest22Player(BasePokerPlayer):
 		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each update
 		# Current info (will be reinitialize from game info)
-		self.player_stack = 1000
-		self.opponent_stack = 1000
+		self.player_stack = 10000
+		self.opponent_stack = 10000
 		self.player_bet = 0 
 		self.opponent_bet = 0
 		self.last_action = {}
@@ -455,7 +455,7 @@ class Honest22Player(BasePokerPlayer):
 		# print("-----GAME UPDATE-----")
 		# print("player_bet: " + str(self.player_bet))
 		# print("opponent_bet: " + str(self.opponent_bet))
-		# print("player_stack: " + str(self.player_stack))
+		# print(str(self.player_stack))
 		# print("opponent_stack: " + str(self.opponent_stack))
 		# print("remaining_raise_this_street: " + str(self.remaining_raise_this_street))
 		# print("remaining_player_raise_this_round: " + str(self.remaining_player_raise_this_round))
@@ -529,7 +529,7 @@ class Honest22Player(BasePokerPlayer):
 		# pprint.pprint(hand_info)
 		# pprint.pprint(round_state)
 		# print("-----ROUND RESULT-----")
-		# print("player_stack: " + str(self.player_stack))
+		print(str(self.player_stack - 10000))
 		# print("opponent_stack: " + str(self.opponent_stack))
 		# print("----------------------")
 		# pass
