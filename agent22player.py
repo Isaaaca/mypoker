@@ -11,6 +11,8 @@ class Group22Player(BasePokerPlayer):
 	# Minumum rounds needed to collect base data for 2nd heuristic
 	MIN_NUM_DATA_COLLECTED = 100
 
+	MAX_ROUND_PER_EXPLORATION = 10
+
 	# Psuedo infinite
 	POS_INF = 10000.0
 
@@ -141,15 +143,22 @@ class Group22Player(BasePokerPlayer):
 		STREET_FIVE_CARD: [0.0, 0.0, 0.0, 0.0, 0.0]
 	}
 
-	BET_AVG_KEY = "avg"
-	BET_NUM_KEY = "num"
-	BET_TOT_KEY = "total"
+	AVG_KEY = "avg"
+	NUM_KEY = "num"
+	TOT_KEY = "total"
 
 	BET_AMOUNT_HISTORY = {
-		# Streets history (current_amount: {BET_AVG_KEY: avg, BET_NUM_KEY: num, BET_TOT_KEY: total})
+		# Streets history (current_amount: {AVG_KEY: avg, NUM_KEY: num, TOT_KEY: total})
 		STREET_ZERO_CARD: {},
 		STREET_THREE_CARD: {},
 		STREET_FOUR_CARD: {}
+	}
+
+	# WEIGHT_HISTORY[weight] = {AVG_KEY: avg, NUM_KEY: num, TOT_KEY: total}
+	WEIGHT_HISTORY = {
+		0.0: {
+			AVG_KEY: 0.0, NUM_KEY: 0, TOT_KEY: 0
+		}
 	}
 
 	# Hold card probability look up table
@@ -284,6 +293,10 @@ class Group22Player(BasePokerPlayer):
 		self.player_stack_at_start_of_round = 10000
 		self.opponent_stack_at_start_of_round = 10000
 		self.prev_outcome = 0
+		self.exploration_rate = 0.0
+		self.best_weight = 0.0
+		self.exploring_weight = 0.0
+		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each street
 		# Street info
 		self.street = self.STREET_ZERO_CARD
@@ -297,7 +310,6 @@ class Group22Player(BasePokerPlayer):
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER	#set to 4
 		self.preflop_expected_value = 0.0
 		self.winning_probability = 0.5
-		self.opp_heuristic_weight = 0.0
 		# To be re-initialized at the start of each update
 		# Current info (will be reinitialize from game info)
 		self.player_stack = 1000
@@ -344,6 +356,8 @@ class Group22Player(BasePokerPlayer):
 	def receive_round_start_message(self, round_count, hole_card, seats):
 		# Initialize round info
 		self.round_count = round_count
+		self.re_calculate_exploration_rate()
+		self.decide_explore_vs_exploit()
 		self.hole_card = list(hole_card)
 		self.remaining_player_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER
 		self.remaining_opponent_raise_this_round = self.NUM_RAISE_PER_ROUND_PER_PLAYER
@@ -472,16 +486,16 @@ class Group22Player(BasePokerPlayer):
 					street = self.LIST_OF_STREET[i]
 					bet = self.bet_at_end_of_street[i]
 					if bet in self.BET_AMOUNT_HISTORY[street].keys():
-						self.BET_AMOUNT_HISTORY[street][bet][self.BET_TOT_KEY] += final_bet
-						self.BET_AMOUNT_HISTORY[street][bet][self.BET_NUM_KEY] += 1
-						self.BET_AMOUNT_HISTORY[street][bet][self.BET_AVG_KEY] = (
-							self.BET_AMOUNT_HISTORY[street][bet][self.BET_TOT_KEY]
-							/ float(self.BET_AMOUNT_HISTORY[street][bet][self.BET_NUM_KEY]))
+						self.BET_AMOUNT_HISTORY[street][bet][self.TOT_KEY] += final_bet
+						self.BET_AMOUNT_HISTORY[street][bet][self.NUM_KEY] += 1
+						self.BET_AMOUNT_HISTORY[street][bet][self.AVG_KEY] = (
+							self.BET_AMOUNT_HISTORY[street][bet][self.TOT_KEY]
+							/ float(self.BET_AMOUNT_HISTORY[street][bet][self.NUM_KEY]))
 					else:
 						self.BET_AMOUNT_HISTORY[street][bet] = {
-							self.BET_AVG_KEY: final_bet,
-							self.BET_NUM_KEY: 1,
-							self.BET_TOT_KEY: final_bet
+							self.AVG_KEY: final_bet,
+							self.NUM_KEY: 1,
+							self.TOT_KEY: final_bet
 						}
 
 		# Update stacks
@@ -494,6 +508,33 @@ class Group22Player(BasePokerPlayer):
 		self.prev_outcome = self.player_stack - self.player_stack_at_start_of_round
 		self.player_stack_at_start_of_round = self.player_stack
 		self.opponent_stack_at_start_of_round = self.opponent_stack
+
+		# Update weight history
+		if self.opp_heuristic_weight in self.WEIGHT_HISTORY.keys():
+			self.WEIGHT_HISTORY[self.opp_heuristic_weight][self.TOT_KEY] += self.prev_outcome
+			self.WEIGHT_HISTORY[self.opp_heuristic_weight][self.NUM_KEY] += 1
+			self.WEIGHT_HISTORY[self.opp_heuristic_weight][self.AVG_KEY] = (
+				self.WEIGHT_HISTORY[self.opp_heuristic_weight][self.TOT_KEY]
+				/ float(self.WEIGHT_HISTORY[self.opp_heuristic_weight][self.NUM_KEY]))
+		else:
+			self.WEIGHT_HISTORY[self.opp_heuristic_weight] = {
+				self.AVG_KEY: self.prev_outcome,
+				self.NUM_KEY: 1,
+				self.TOT_KEY: self.prev_outcome
+			}
+
+		# Update best weight (O(round_count))
+		best_weight_avg_outcome = self.WEIGHT_HISTORY[self.best_weight][self.AVG_KEY]
+		for x in self.WEIGHT_HISTORY.keys():
+			avg_outcome = self.WEIGHT_HISTORY[x][self.AVG_KEY]
+			if avg_outcome > best_weight_avg_outcome:
+				self.best_weight = x
+				best_weight_avg_outcome = avg_outcome
+
+		# Update exploration value
+		if (self.exploring_weight in self.WEIGHT_HISTORY.keys()):
+			if (self.WEIGHT_HISTORY[self.exploring_weight][self.NUM_KEY] >= self.MAX_ROUND_PER_EXPLORATION):
+				self.generate_new_exploration_weight()
 
 		has_won = (winners[0]["name"] == self.name)
 		
@@ -529,6 +570,11 @@ class Group22Player(BasePokerPlayer):
 		# pprint.pprint(hand_info)
 		# pprint.pprint(round_state)
 		# print("-----ROUND RESULT-----")
+		# if (self.round_count == self.max_round):
+		#	pprint.pprint(self.RAISE_HISTORY)
+		#	pprint.pprint(self.WIN_RATES_FROM_RAISE_HISTORY)
+		#	pprint.pprint(self.BET_AMOUNT_HISTORY)
+		#	pprint.pprint(self.WEIGHT_HISTORY)
 		# print("player_stack: " + str(self.player_stack))
 		# print("opponent_stack: " + str(self.opponent_stack))
 		# print("----------------------")
@@ -738,7 +784,7 @@ class Group22Player(BasePokerPlayer):
 		else:
 			if ((self.round_count > self.MIN_NUM_DATA_COLLECTED)
 				and (bet_amount in self.BET_AMOUNT_HISTORY[self.street].keys())):
-				expected_bet = self.BET_AMOUNT_HISTORY[self.street][bet_amount][self.BET_AVG_KEY]
+				expected_bet = self.BET_AMOUNT_HISTORY[self.street][bet_amount][self.AVG_KEY]
 			else:
 				expected_bet = self.naive_expected_bet_amount(
 									bet_amount, 
@@ -793,6 +839,54 @@ class Group22Player(BasePokerPlayer):
 		else:
 			value = card_heuristic
 		return value
+
+	def re_calculate_exploration_rate(self):
+		if (self.round_count <= self.MIN_NUM_DATA_COLLECTED) or (self.max_round <= self.MIN_NUM_DATA_COLLECTED):
+			self.exploration_rate = 0.0
+		else:
+			round_after_data_collect = self.round_count - self.MIN_NUM_DATA_COLLECTED
+			max_round_after_data_collect = self.max_round - self.MIN_NUM_DATA_COLLECTED
+			round_progress = round_after_data_collect / float(max_round_after_data_collect)
+			self.exploration_rate = 0.75 - 0.5 * round_progress
+
+	def decide_explore_vs_exploit(self):
+		r = rand.random()
+		if r < self.exploration_rate:
+			self.opp_heuristic_weight = self.exploring_weight
+		else:
+			self.opp_heuristic_weight = self.best_weight
+
+	def generate_new_exploration_weight(self):
+		result = self.best_weight
+		r = rand.random()
+		if r < 0.5:
+			result = self.custom_random(self.best_weight - 0.1, self.best_weight + 0.1)
+		else:
+			r = rand.random()
+			if r < 0.5:
+				result = self.custom_random(self.best_weight - 0.2, self.best_weight + 0.2)
+			else:
+				r = rand.random()
+				if r < 0.5:
+					result = self.custom_random(self.best_weight - 0.4, self.best_weight + 0.4)
+				else:
+					r = rand.random()
+					if r < 0.5:
+						result = self.custom_random(self.best_weight - 0.7, self.best_weight + 0.7)
+					else:
+						result = self.custom_random(0.0, 1.0)
+		self.exploring_weight = result
+
+	def custom_random(self, start, stop):
+		custom_start = start
+		custom_stop = stop
+		if (start < 0.0):
+			custom_start = 0.0
+		if (stop > 1.0):
+			custom_stop = 1.0
+		r = rand.random()
+		result = custom_start + (custom_stop - custom_start) * r
+		return result
 
 	def re_calculate_probability(self):
 		# if in PREFLOP, we check against expected value and reverse the equation 
